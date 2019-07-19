@@ -1,3 +1,9 @@
 <body>
-    <audio src="/music/a" controls />
+    <audio src="/music/a?temppassword=hoge" controls />
+    <script src="audiojs/audio.min.js"></script>
+    <script>
+        audiojs.events.ready(function () {
+            var as = audiojs.createAll();
+        });
+    </script>
 </body>
