@@ -1,9 +1,49 @@
 <body>
-    <audio src="/music/a?temppassword=hoge" controls />
-    <script src="audiojs/audio.min.js"></script>
+    <audio id="audio" controls />
     <script>
-        audiojs.events.ready(function () {
-            var as = audiojs.createAll();
-        });
+        window.addEventListener('load', function () {
+            load()
+        }, false);
+
+        function load() {
+            var data = "temppassword=hogefuga";
+
+            const xhr = new XMLHttpRequest();
+            xhr.addEventListener("progress", function (oEvent) {
+                if (oEvent.lengthComputable) {
+                    var percentComplete = oEvent.loaded / oEvent.total * 100;
+                    console.log(percentComplete.toString() + "%");
+                }
+            });
+            xhr.addEventListener("load", function (evt) {
+                console.log("転送が完了しました。");
+            });
+            xhr.addEventListener("error", function (evt) {
+                console.log("ファイルの転送中にエラーが発生しました。");
+            });
+            xhr.addEventListener("abort", function (evt) {
+                console.log("ユーザーが転送をキャンセルしました。");
+            });
+
+            xhr.open('POST', '/music/a');
+            xhr.responseType = 'arraybuffer';
+
+            xhr.onload = () => {
+                const blob = new Blob([xhr.response], { type: 'audio/mpeg' });
+                const objectUrl = URL.createObjectURL(blob);
+
+                const audio = document.getElementById('audio'); // new Audio();
+                audio.autoplay = true;
+                audio.onload = () => {
+                    URL.revokeObjectURL(objectUrl);
+                };
+
+                audio.src = objectUrl;
+            };
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            // 送信
+            xhr.send(data);
+        }
     </script>
 </body>
