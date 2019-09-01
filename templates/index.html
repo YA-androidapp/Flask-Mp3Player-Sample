@@ -21,6 +21,7 @@
         <input type="text" id="token" value="" placeholder="retrieved access token">
     </div>
     <hr>
+    <input type="button" id="load" value="load" />
     <audio id="audio" controls>
         <script>
             window.addEventListener('load', function () {
@@ -28,11 +29,17 @@
                     retrieve_token();
                 };
 
-                load()
+                document.getElementById('load').onclick = () => {
+                    load('/music/h.mp3');
+                };
+
+                load('/music/k.mp3')
             }, false);
 
-            function load() {
-                var data = 'temppassword=hogefuga';
+            function load(url) {
+                if(url.length == 0){
+                    url = '/music/k.mp3';
+                }
 
                 const xhr = new XMLHttpRequest();
                 xhr.addEventListener('progress', function (oEvent) {
@@ -51,14 +58,14 @@
                     console.log('ユーザーが転送をキャンセルしました。');
                 });
 
-                xhr.open('GET', '/music/k.mp3');
+                xhr.open('GET', url);
                 xhr.responseType = 'arraybuffer';
 
                 xhr.onload = () => {
                     const blob = new Blob([xhr.response], { type: 'audio/mpeg' });
                     const objectUrl = URL.createObjectURL(blob);
 
-                    const audio = document.getElementById('audio'); // new Audio();
+                    const audio = document.getElementById('audio');
                     audio.autoplay = true;
                     audio.onload = () => {
                         URL.revokeObjectURL(objectUrl);
@@ -73,7 +80,7 @@
                 }
 
                 // 送信
-                xhr.send(data);
+                xhr.send();
             }
 
             function retrieve_token() {
