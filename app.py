@@ -2,20 +2,33 @@
 # -*- coding: utf-8 -*-
 #
 # Copyright (c) 2019 YA-androidapp(https://github.com/YA-androidapp) All rights reserved.
+#
+# Required:
+#  python -m pip install flask flask_jwt flask_sqlalchemy mutagen
 
 from datetime import datetime
 from flask import Flask, jsonify, make_response, redirect, render_template, request, send_file, send_from_directory
+from flask_jwt import jwt_required, current_identity, JWT
 from flask_sqlalchemy import SQLAlchemy
 from mutagen.mp3 import MP3
 import hashlib
 import os
 import sys
 
+
+# Init
 app = Flask(__name__)
 app.config['ALLOWED_EXTENSIONS'] = set(['mp3'])
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024 * 1024  # 10GB
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(app.root_path, 'app.db')
 app.config['UPLOAD_DIR'] = os.path.join('.', 'data')
+
+# SQLAlchemy
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(app.root_path, 'app.db')
+
+# JWT
+app.config['SECRET_KEY'] = 'develop'
+app.config['JWT_AUTH_USERNAME_KEY'] = 'email'
+app.config['JWT_AUTH_URL_RULE'] = '/auth/token'
 
 db = SQLAlchemy(app)
 
@@ -62,6 +75,20 @@ def allowed_filecontent(filename):
     return False
 
 
+def authoricate(email, password):
+    users = db.session.query(User).filter_by(email=email).all()
+    target = next((user for user in users if user.email == email), None)
+    is_auth = True if target is not None and target.pwdhash == hashlib.sha256(password.encode('UTF-8')).hexdigest() else False
+    return target if is_auth else None
+
+
+def identity(payload):
+    users = db.session.query(User)
+    user_id = payload['identity']
+    target = next((user for user in users if user.id == user_id), None)
+    return target
+
+
 # Endpoints
 
 @app.route('/', methods=['GET'])
@@ -70,8 +97,9 @@ def index():
 
 
 @app.route('/music/<string:music_id>', methods=['GET'])
+@jwt_required()
 def music_id(music_id):
-    music_id = 'k.mp3' if music_id is None or music_id == '' else music_id
+    music_id = 'h.mp3' if music_id is None or music_id == '' else music_id
     filename = os.path.join(app.config['UPLOAD_DIR'], music_id)
     return send_file(filename, as_attachment=False, attachment_filename=filename, mimetype='audio/mpeg')
 
@@ -122,11 +150,18 @@ def post_upload_music():
 @app.before_first_request
 def init():
     db.create_all()
-    user = User('ya.androidapp@gmail.com', 'PASSWORD')
-    db.session.add(user)
-    db.session.commit()
+
+    email = 'ya.androidapp@gmail.com'
+    users = db.session.query(User).filter_by(email=email).all()
+    if len(users) == 0:
+        user = User(email, 'PASSWORD')
+        db.session.add(user)
+        db.session.commit()
 
 
 if __name__ == '__main__':
     os.makedirs(app.config['UPLOAD_DIR'], exist_ok=True)
+
+    jwt = JWT(app, authoricate, identity)
+
     app.run(host='localhost', port=3000)

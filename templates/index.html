@@ -1,59 +1,98 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-<meta charset="utf-8">
-<title>Flask-Mp3Player-Sample</title>
-<meta name="description" content="Flask-Mp3Player-Sample">
-<meta name="author" content="YA-androidapp(https://github.com/YA-androidapp)">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8">
+    <title>Flask-Mp3Player-Sample</title>
+    <meta name="description" content="Flask-Mp3Player-Sample">
+    <meta name="author" content="YA-androidapp(https://github.com/YA-androidapp)">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
+
 <body>
-    <audio id="audio" controls />
-    <script>
-        window.addEventListener('load', function () {
-            load()
-        }, false);
-
-        function load() {
-            var data = "temppassword=hogefuga";
-
-            const xhr = new XMLHttpRequest();
-            xhr.addEventListener("progress", function (oEvent) {
-                if (oEvent.lengthComputable) {
-                    var percentComplete = oEvent.loaded / oEvent.total * 100;
-                    console.log(percentComplete.toString() + "%");
-                }
-            });
-            xhr.addEventListener("load", function (evt) {
-                console.log("転送が完了しました。");
-            });
-            xhr.addEventListener("error", function (evt) {
-                console.log("ファイルの転送中にエラーが発生しました。");
-            });
-            xhr.addEventListener("abort", function (evt) {
-                console.log("ユーザーが転送をキャンセルしました。");
-            });
-
-            xhr.open('POST', '/music/a');
-            xhr.responseType = 'arraybuffer';
-
-            xhr.onload = () => {
-                const blob = new Blob([xhr.response], { type: 'audio/mpeg' });
-                const objectUrl = URL.createObjectURL(blob);
-
-                const audio = document.getElementById('audio'); // new Audio();
-                audio.autoplay = true;
-                audio.onload = () => {
-                    URL.revokeObjectURL(objectUrl);
+    <ul>
+        <li><a href="/upload/music">/upload/music</a></li>
+    </ul>
+    <div>
+        <input type="text" id="email" value="ya.androidapp@gmail.com">
+        <input type="password" id="password" value="PASSWORD">
+        <input type="button" id="submit" value="submit" />
+        ==&gt;
+        <input type="text" id="token" value="" placeholder="retrieved access token">
+    </div>
+    <hr>
+    <audio id="audio" controls>
+        <script>
+            window.addEventListener('load', function () {
+                document.getElementById('submit').onclick = () => {
+                    retrieve_token();
                 };
 
-                audio.src = objectUrl;
-            };
-            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+                load()
+            }, false);
 
-            // 送信
-            xhr.send(data);
-        }
-    </script>
+            function load() {
+                var data = 'temppassword=hogefuga';
+
+                const xhr = new XMLHttpRequest();
+                xhr.addEventListener('progress', function (oEvent) {
+                    if (oEvent.lengthComputable) {
+                        var percentComplete = oEvent.loaded / oEvent.total * 100;
+                        console.log(percentComplete.toString() + '%');
+                    }
+                });
+                xhr.addEventListener('load', function (evt) {
+                    console.log('転送が完了しました。');
+                });
+                xhr.addEventListener('error', function (evt) {
+                    console.log('ファイルの転送中にエラーが発生しました。');
+                });
+                xhr.addEventListener('abort', function (evt) {
+                    console.log('ユーザーが転送をキャンセルしました。');
+                });
+
+                xhr.open('GET', '/music/k.mp3');
+                xhr.responseType = 'arraybuffer';
+
+                xhr.onload = () => {
+                    const blob = new Blob([xhr.response], { type: 'audio/mpeg' });
+                    const objectUrl = URL.createObjectURL(blob);
+
+                    const audio = document.getElementById('audio'); // new Audio();
+                    audio.autoplay = true;
+                    audio.onload = () => {
+                        URL.revokeObjectURL(objectUrl);
+                    };
+
+                    audio.src = objectUrl;
+                };
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+
+                if(document.getElementById('token').value.length > 0){
+                    xhr.setRequestHeader('Authorization', 'JWT ' + document.getElementById('token').value);
+                }
+
+                // 送信
+                xhr.send(data);
+            }
+
+            function retrieve_token() {
+                var json = {};
+                json.email = document.getElementById('email').value;
+                json.password = document.getElementById('password').value;
+                console.log(json);
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/auth/token');
+                xhr.onload = () => {
+                    console.log(xhr.response)
+                    document.getElementById('token').value = xhr.response.access_token;
+                };
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                xhr.responseType = 'json';
+                xhr.send(JSON.stringify(json));
+            }
+        </script>
 </body>
+
 </html><!-- Copyright (c) 2019 YA-androidapp(https://github.com/YA-androidapp) All rights reserved. -->
