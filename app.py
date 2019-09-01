@@ -5,11 +5,13 @@
 
 from datetime import datetime
 from flask import Flask, jsonify, make_response, redirect, render_template, request, send_file, send_from_directory
+from mutagen.mp3 import MP3
+import hashlib
 import os
 import sys
-import werkzeug
 
 app = Flask(__name__)
+app.config['ALLOWED_EXTENSIONS'] = set(['mp3'])
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024 * 1024  # 10GB
 app.config['UPLOAD_DIR'] = os.path.join('.', 'data')
 
@@ -30,7 +32,23 @@ def get_upload_music():
     return render_template('upload.html')
 
 
-import hashlib
+def allowed_filename(filename):
+    try:
+        return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+    except Exception as e:
+        print(e)
+    return False
+
+
+def allowed_filecontent(filename):
+    try:
+        audio = MP3(filename)
+        if audio.info.length > 0:
+            return True
+    except Exception as e:
+        print(e)
+    return False
+
 
 @app.route('/upload/music', methods=['POST'])
 def post_upload_music():
@@ -43,24 +61,25 @@ def post_upload_music():
     for file in upload_files:
         filename = file.filename
 
-        hash = hashlib.sha256(file.read()).hexdigest()
-        save_filename = hash + os.path.splitext(filename)[1]
-        file.seek(0)
+        if allowed_filename(filename):
+            hash = hashlib.sha256(file.read()).hexdigest()
+            save_filename = hash + os.path.splitext(filename)[1]
+            file.seek(0)
+            save_filepath = os.path.join(app.config['UPLOAD_DIR'], save_filename)
 
-        # save_filename = datetime.now().strftime('%Y%m%d_%H%M%S_') + werkzeug.utils.secure_filename(filename)
-        save_filepath = os.path.join(app.config['UPLOAD_DIR'], save_filename)
+            if os.path.exists(save_filepath) == False:
+                file.save(save_filepath)
+                if allowed_filecontent(save_filepath):
+                    count_success += 1
+                    filenamepair_success[file.filename] = save_filename
+                else:
+                    os.remove(save_filepath)
 
-        if os.path.exists(save_filepath) == False:
-            file.save(save_filepath)
-            count_success += 1
-            filenamepair_success[file.filename] = save_filename
-    mes = '{} files uploaded'.format(count_success) if count_success > 1 else 'a file uploaded'
-    return make_response(jsonify({'result': mes, 'filename': filenamepair_success}))
-
-
-@app.errorhandler(werkzeug.exceptions.RequestEntityTooLarge)
-def handle_over_max_file_size(error):
-    return redirect(request.url)
+    if count_success == 0:
+        return make_response(jsonify({'result': 'file not uploaded'}))
+    else:
+        mes = '{} files uploaded'.format(count_success) if count_success > 1 else 'a file uploaded'
+        return make_response(jsonify({'result': mes, 'filename': filenamepair_success}))
 
 
 if __name__ == '__main__':
