@@ -10,6 +10,9 @@
 </head>
 
 <body>
+    {% if current_user.is_authenticated %}
+        Signed in: {{ current_user.email }}
+    {% endif %}
     <ul>
         <li><a href="/upload/music">/upload/music</a></li>
     </ul>

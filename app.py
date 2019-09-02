@@ -10,9 +10,10 @@ from collections import defaultdict
 from datetime import datetime
 from flask import Flask, abort, jsonify, make_response, redirect, render_template, request, Response, send_file, send_from_directory, url_for
 from flask_jwt import jwt_required, current_identity, JWT
-from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin
+from flask_login import current_user, LoginManager, login_user, logout_user, login_required, UserMixin
 from flask_sqlalchemy import SQLAlchemy
 from mutagen.mp3 import MP3
+from werkzeug.security import generate_password_hash, check_password_hash
 import hashlib
 import os
 import sys
@@ -56,10 +57,10 @@ class User(UserMixin, db.Model):
         return '<User %r>' % self.email
 
     def set_password(self, password):
-        self.pwdhash = hashlib.sha256(password.encode('UTF-8')).hexdigest()
+        self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
-        return self.pwdhash == hashlib.sha256(password.encode('UTF-8')).hexdigest()
+        return check_password_hash(self.password_hash, password)
 
 
 # Functions
@@ -195,11 +196,8 @@ def unauthorized():
 
 
 @login_manager.user_loader
-def load_user(email):
-    try:
-        return db.session.query(User).filter_by(email=email).first()
-    except:
-        return None
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 
 if __name__ == '__main__':
