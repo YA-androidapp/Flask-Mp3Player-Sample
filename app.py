@@ -6,9 +6,11 @@
 # Required:
 #  python -m pip install flask flask_jwt flask_sqlalchemy mutagen
 
+from collections import defaultdict
 from datetime import datetime
-from flask import Flask, jsonify, make_response, redirect, render_template, request, send_file, send_from_directory
+from flask import Flask, abort, jsonify, make_response, redirect, render_template, request, Response, send_file, send_from_directory, url_for
 from flask_jwt import jwt_required, current_identity, JWT
+from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin
 from flask_sqlalchemy import SQLAlchemy
 from mutagen.mp3 import MP3
 import hashlib
@@ -30,12 +32,17 @@ app.config['SECRET_KEY'] = 'develop'
 app.config['JWT_AUTH_USERNAME_KEY'] = 'email'
 app.config['JWT_AUTH_URL_RULE'] = '/auth/token'
 
+# Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+app.config['SECRET_KEY'] = '!SECRETKEY!'
+
 db = SQLAlchemy(app)
 
 
 # Models
 
-class User(db.Model):
+class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True)
@@ -83,7 +90,7 @@ def authoricate(email, password):
 
 
 def identity(payload):
-    users = db.session.query(User)
+    users = db.session.query(User).all()
     user_id = payload['identity']
     target = next((user for user in users if user.id == user_id), None)
     return target
@@ -96,6 +103,27 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/login', methods=["GET", "POST"])
+def login():
+    if(request.method == "POST"):
+        # ユーザーチェック
+        if(authoricate(request.form["email"], request.form["password"])):
+            # ユーザーが存在した場合はログイン
+            login_user(db.session.query(User).filter_by(email=request.form["email"]).first())
+            return Response('logined')
+        else:
+            return abort(401)
+    else:
+        return render_template("login.html")
+
+# ログアウトパス
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return render_template("login.html")
+
+
 @app.route('/music/<string:music_id>', methods=['GET'])
 @jwt_required()
 def music_id(music_id):
@@ -105,6 +133,7 @@ def music_id(music_id):
 
 
 @app.route('/upload/music', methods=['GET'])
+@login_required
 def get_upload_music():
     return render_template('upload.html')
 
@@ -157,6 +186,20 @@ def init():
         user = User(email, 'PASSWORD')
         db.session.add(user)
         db.session.commit()
+
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    # do stuff
+    return redirect(url_for('login'))
+
+
+@login_manager.user_loader
+def load_user(email):
+    try:
+        return db.session.query(User).filter_by(email=email).first()
+    except:
+        return None
 
 
 if __name__ == '__main__':
