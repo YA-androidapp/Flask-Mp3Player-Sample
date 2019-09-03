@@ -8,15 +8,20 @@
 
 from collections import defaultdict
 from datetime import datetime
-from flask import Flask, abort, jsonify, make_response, redirect, render_template, request, Response, send_file, send_from_directory, url_for
+from flask import Flask, abort, jsonify, make_response, redirect, render_template, request, Response, send_file, send_from_directory, session, url_for
 from flask_jwt import jwt_required, current_identity, JWT
 from flask_login import current_user, LoginManager, login_user, logout_user, login_required, UserMixin
 from flask_sqlalchemy import SQLAlchemy
 from mutagen.mp3 import MP3
+from urllib import parse
 from werkzeug.security import generate_password_hash, check_password_hash
 import hashlib
 import os
 import sys
+
+
+# Const
+KEY_NEXT = 'next'
 
 
 # Init
@@ -104,25 +109,34 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/login', methods=["GET", "POST"])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    if(request.method == "POST"):
+    if(request.method == 'POST'):
         # ユーザーチェック
-        if(authoricate(request.form["email"], request.form["password"])):
+        if(authoricate(request.form['email'], request.form['password'])):
             # ユーザーが存在した場合はログイン
-            login_user(db.session.query(User).filter_by(email=request.form["email"]).first())
-            return Response('logined')
+            login_user(db.session.query(User).filter_by(email=request.form['email']).first())
+
+            if not session[KEY_NEXT] or parse.urlparse(session[KEY_NEXT]).netloc != '':
+                next_page = url_for('index')
+            else:
+                next_page = session[KEY_NEXT]
+            return redirect(next_page)
         else:
             return abort(401)
     else:
-        return render_template("login.html")
+        if not request.args.get(KEY_NEXT):
+            session[KEY_NEXT] = None
+        else:
+            session[KEY_NEXT] = parse.unquote(request.args.get(KEY_NEXT))
+        return render_template('login.html')
 
 # ログアウトパス
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
-    return render_template("login.html")
+    return render_template('login.html')
 
 
 @app.route('/music/<string:music_id>', methods=['GET'])
@@ -133,46 +147,44 @@ def music_id(music_id):
     return send_file(filename, as_attachment=False, attachment_filename=filename, mimetype='audio/mpeg')
 
 
-@app.route('/upload/music', methods=['GET'])
-@login_required
-def get_upload_music():
-    return render_template('upload.html')
-
-
 # API
 
-@app.route('/upload/music', methods=['POST'])
+@app.route('/upload/music', methods=['GET', 'POST'])
+@login_required
 def post_upload_music():
-    if 'files' not in request.files:
-        return make_response(jsonify({'result': 'file not selected'}))
-
-    count_success = 0
-    filenamepair_success = {}
-    upload_files = request.files.getlist('files')
-    for file in upload_files:
-        filename = file.filename
-
-        if allowed_filename(filename):
-            hash = hashlib.sha256(file.read()).hexdigest()
-            save_filename = hash + os.path.splitext(filename)[1]
-            file.seek(0)
-            save_filepath = os.path.join(
-                app.config['UPLOAD_DIR'], save_filename)
-
-            if os.path.exists(save_filepath) == False:
-                file.save(save_filepath)
-                if allowed_filecontent(save_filepath):
-                    count_success += 1
-                    filenamepair_success[file.filename] = save_filename
-                else:
-                    os.remove(save_filepath)
-
-    if count_success == 0:
-        return make_response(jsonify({'result': 'file not uploaded'}))
+    if(request.method == 'GET'):
+        return render_template('upload.html')
     else:
-        mes = '{} files uploaded'.format(
-            count_success) if count_success > 1 else 'a file uploaded'
-        return make_response(jsonify({'result': mes, 'filename': filenamepair_success}))
+        if 'files' not in request.files:
+            return make_response(jsonify({'result': 'file not selected'}))
+
+        count_success = 0
+        filenamepair_success = {}
+        upload_files = request.files.getlist('files')
+        for file in upload_files:
+            filename = file.filename
+
+            if allowed_filename(filename):
+                hash = hashlib.sha256(file.read()).hexdigest()
+                save_filename = hash + os.path.splitext(filename)[1]
+                file.seek(0)
+                save_filepath = os.path.join(
+                    app.config['UPLOAD_DIR'], save_filename)
+
+                if os.path.exists(save_filepath) == False:
+                    file.save(save_filepath)
+                    if allowed_filecontent(save_filepath):
+                        count_success += 1
+                        filenamepair_success[file.filename] = save_filename
+                    else:
+                        os.remove(save_filepath)
+
+        if count_success == 0:
+            return make_response(jsonify({'result': 'file not uploaded'}))
+        else:
+            mes = '{} files uploaded'.format(
+                count_success) if count_success > 1 else 'a file uploaded'
+            return make_response(jsonify({'result': mes, 'filename': filenamepair_success}))
 
 
 # Init
@@ -191,8 +203,7 @@ def init():
 
 @login_manager.unauthorized_handler
 def unauthorized():
-    # do stuff
-    return redirect(url_for('login'))
+    return redirect('/login?next=' + parse.quote(request.path, safe=''))
 
 
 @login_manager.user_loader
