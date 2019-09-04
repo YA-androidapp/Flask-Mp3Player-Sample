@@ -31,6 +31,8 @@
     <audio id="audio" controls>
     <script>
         window.addEventListener('load', function () {
+            check_cookie();
+
             document.getElementById('submit').onclick = () => {
                 retrieve_token();
             };
@@ -41,6 +43,15 @@
 
             load('/music/k.mp3')
         }, false);
+
+        function check_cookie(url) {
+            if (document.cookie.split(';').filter(function(item) {return item.trim().indexOf('token=') == 0}).length) {
+                var token = document.cookie.replace(/(?:(?:^|.*;\s*)token\s*\=\s*([^;]*).*$)|^.*$/, "$1");
+                if(token.length > 0){
+                    document.getElementById('token').value = token;
+                }
+            }
+        }
 
         function load(url) {
             if (url.length == 0) {

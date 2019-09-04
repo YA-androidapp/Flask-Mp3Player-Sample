@@ -17,6 +17,8 @@
     </form>
     <script>
         window.addEventListener('load', function () {
+            document.cookie = 'token=';
+
             document.getElementById('loginform').onsubmit = () => {
                 retrieve_token();
             };
