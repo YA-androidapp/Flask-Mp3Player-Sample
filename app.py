@@ -136,7 +136,10 @@ def login():
 @login_required
 def logout():
     logout_user()
-    return render_template('login.html')
+
+    response = make_response(redirect('/'))
+    response.set_cookie('token', '')
+    return response
 
 
 @app.route('/music/<string:music_id>', methods=['GET'])
